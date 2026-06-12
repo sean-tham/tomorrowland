@@ -1,0 +1,120 @@
+"use client";
+import { useMemo } from "react";
+import { LINEUP, setsClash, getSimilarSets,  TmlSet } from "@/data/lineup";
+import { SetCard } from "./SetCard";
+
+const DAY_LABELS: Record<string, string> = {
+  "2026-07-24": "Friday · July 24",
+  "2026-07-25": "Saturday · July 25",
+  "2026-07-26": "Sunday · July 26",
+};
+
+interface Props {
+  favorites: string[];
+  onToggleFav: (id: string) => void;
+  onSetClick: (set: TmlSet) => void;
+}
+
+export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
+  const favSets = useMemo(
+    () => LINEUP.filter(s => favorites.includes(s.id)).sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return a.startTime.localeCompare(b.startTime);
+    }),
+    [favorites]
+  );
+
+  const clashPairs = useMemo(() => {
+    const clashes = new Set<string>();
+    for (let i = 0; i < favSets.length; i++) {
+      for (let j = i + 1; j < favSets.length; j++) {
+        if (setsClash(favSets[i], favSets[j])) {
+          clashes.add(favSets[i].id);
+          clashes.add(favSets[j].id);
+        }
+      }
+    }
+    return clashes;
+  }, [favSets]);
+
+  const suggestions = useMemo(() => {
+    if (favSets.length === 0) return [];
+    const last = favSets[favSets.length - 1];
+    return getSimilarSets(last, LINEUP, favorites);
+  }, [favSets, favorites]);
+
+  const byDay = useMemo(() => {
+    const days: Record<string, typeof favSets> = {};
+    favSets.forEach(s => {
+      if (!days[s.date]) days[s.date] = [];
+      days[s.date].push(s);
+    });
+    return days;
+  }, [favSets]);
+
+  if (favorites.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-8 pb-24 text-center fade-in">
+        <div className="text-6xl mb-4">🎪</div>
+        <h2 className="text-xl font-bold text-white mb-2">No favourites yet</h2>
+        <p className="text-white/50 text-sm leading-relaxed">
+          Tap the heart on any set to save it here. We&apos;ll help you spot clashes and find similar artists.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto pb-24 fade-in">
+      {/* Clash warning */}
+      {clashPairs.size > 0 && (
+        <div className="mx-4 mb-4 mt-2 p-3 rounded-2xl bg-red-500/10 border border-red-500/20">
+          <p className="text-sm font-semibold text-red-400">⚡ {clashPairs.size} sets are clashing</p>
+          <p className="text-xs text-red-400/70 mt-0.5">Sets marked in red overlap in time</p>
+        </div>
+      )}
+
+      {/* Favourites by day */}
+      {Object.entries(byDay).map(([date, sets]) => (
+        <div key={date} className="mb-6">
+          <h3 className="px-4 text-xs font-bold text-amber-400/80 uppercase tracking-widest mb-2">
+            {DAY_LABELS[date]}
+          </h3>
+          <div className="px-4 space-y-2">
+            {sets.map(set => (
+              <SetCard
+                key={set.id}
+                set={set}
+                isFav={true}
+                onToggleFav={onToggleFav}
+                clashing={clashPairs.has(set.id)}
+                onClick={() => onSetClick(set)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="mb-6">
+          <h3 className="px-4 text-xs font-bold text-white/40 uppercase tracking-widest mb-2">
+            You might also like
+          </h3>
+          <div className="px-4 space-y-2">
+            {suggestions.map(set => (
+              <SetCard
+                key={set.id}
+                set={set}
+                isFav={false}
+                onToggleFav={onToggleFav}
+                compact
+                onClick={() => onSetClick(set)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

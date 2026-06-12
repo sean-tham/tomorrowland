@@ -1,0 +1,22 @@
+{
+  "name": "Tomorrowland 2026 W2",
+  "short_name": "TML 2026",
+  "description": "Tomorrowland 2026 Weekend 2 lineup guide",
+  "start_url": "/tomorrowland/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/tomorrowland/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/tomorrowland/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
