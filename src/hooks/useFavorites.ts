@@ -25,5 +25,10 @@ export function useFavorites() {
 
   const isFav = useCallback((id: string) => favorites.includes(id), [favorites]);
 
-  return { favorites, toggle, isFav, loaded };
+  const clearAll = useCallback(() => {
+    setFavorites([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }, []);
+
+  return { favorites, toggle, isFav, clearAll, loaded };
 }

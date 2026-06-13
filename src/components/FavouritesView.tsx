@@ -12,10 +12,11 @@ const DAY_LABELS: Record<string, string> = {
 interface Props {
   favorites: string[];
   onToggleFav: (id: string) => void;
+  onClearAll: () => void;
   onSetClick: (set: TmlSet) => void;
 }
 
-export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
+export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick }: Props) {
   const favSets = useMemo(
     () => LINEUP.filter(s => favorites.includes(s.id)).sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -66,6 +67,17 @@ export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto pb-24 fade-in">
+      {/* Header row */}
+      <div className="flex items-center justify-between px-4 pt-1 pb-2">
+        <p className="text-xs text-white/40">{favorites.length} set{favorites.length !== 1 ? "s" : ""} saved</p>
+        <button
+          onClick={() => { if (confirm("Clear all favourites?")) onClearAll(); }}
+          className="text-xs text-red-400/70 hover:text-red-400 transition-colors font-medium"
+        >
+          Clear all
+        </button>
+      </div>
+
       {/* Clash warning */}
       {clashPairs.size > 0 && (
         <div className="mx-4 mb-4 mt-2 p-3 rounded-2xl bg-red-500/10 border border-red-500/20">

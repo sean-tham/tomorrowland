@@ -5,14 +5,25 @@ import { ScheduleView } from "@/components/ScheduleView";
 import { StageView } from "@/components/StageView";
 import { FavouritesView } from "@/components/FavouritesView";
 import { SetDetailModal } from "@/components/SetDetailModal";
+import dynamic from "next/dynamic";
 import { TmlSet } from "@/data/lineup";
 
-type Tab = "schedule" | "stages" | "favourites";
+// Dynamic import so Leaflet (browser-only) is never loaded on the server
+const MapView = dynamic(() => import("@/components/MapView").then(m => m.MapView), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-4xl animate-pulse">🗺️</div>
+    </div>
+  ),
+});
+
+type Tab = "schedule" | "stages" | "map" | "favourites";
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("schedule");
   const [selectedSet, setSelectedSet] = useState<TmlSet | null>(null);
-  const { favorites, toggle, isFav, loaded } = useFavorites();
+  const { favorites, toggle, isFav, clearAll, loaded } = useFavorites();
 
   if (!loaded) {
     return (
@@ -28,7 +39,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-svh max-w-lg mx-auto overflow-hidden" style={{ background: "radial-gradient(ellipse at top, #1a0a2e 0%, #0a0a0f 60%)" }}>
       {/* Header */}
-      <header className="px-4 pt-safe flex items-center gap-3" style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
+      <header className="px-4 flex items-center gap-3" style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
         <div className="flex-1">
           <h1 className="text-lg font-black tracking-tight text-white leading-none">
             Tomorrowland <span className="text-amber-400">2026</span>
@@ -50,25 +61,29 @@ export default function Home() {
         {tab === "stages" && (
           <StageView favorites={favorites} onToggleFav={toggle} onSetClick={handleSetClick} />
         )}
+        {tab === "map" && (
+          <MapView favorites={favorites} onSetClick={handleSetClick} onToggleFav={toggle} />
+        )}
         {tab === "favourites" && (
-          <FavouritesView favorites={favorites} onToggleFav={toggle} onSetClick={handleSetClick} />
+          <FavouritesView favorites={favorites} onToggleFav={toggle} onClearAll={clearAll} onSetClick={handleSetClick} />
         )}
       </main>
 
       {/* Bottom nav */}
       <nav
-        className="glass-strong border-t border-white/5 flex items-center justify-around pb-safe"
+        className="glass-strong border-t border-white/5 flex items-center justify-around"
         style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}
       >
         {([
           { id: "schedule", icon: "🗓️", label: "Schedule" },
-          { id: "stages", icon: "🎡", label: "Stages" },
+          { id: "stages",   icon: "🎡", label: "Stages" },
+          { id: "map",      icon: "🗺️", label: "Map" },
           { id: "favourites", icon: "❤️", label: "My Plan" },
         ] as { id: Tab; icon: string; label: string }[]).map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex flex-col items-center gap-0.5 py-3 px-6 rounded-xl transition-all duration-200 ${
+            className={`flex flex-col items-center gap-0.5 py-3 px-4 rounded-xl transition-all duration-200 ${
               tab === t.id ? "text-amber-400" : "text-white/40"
             }`}
           >
@@ -86,7 +101,7 @@ export default function Home() {
           favorites={favorites}
           onToggleFav={toggle}
           onClose={handleClose}
-          onSetClick={(s) => { setSelectedSet(s); }}
+          onSetClick={(s) => setSelectedSet(s)}
         />
       )}
     </div>
