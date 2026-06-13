@@ -622,16 +622,28 @@ export function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
+// Times before 6am belong to the "late night" slot of the same festival day
+export function sortMinutes(time: string): number {
+  const mins = timeToMinutes(time);
+  return mins < 360 ? mins + 1440 : mins;
+}
+
+export function formatTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h < 12 ? "am" : "pm";
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const mins = m > 0 ? `:${m.toString().padStart(2, "0")}` : "";
+  return `${hour12}${mins}${period}`;
+}
+
 export function setsClash(a: TmlSet, b: TmlSet): boolean {
   if (a.date !== b.date) return false;
-  const aStart = timeToMinutes(a.startTime);
-  const aEnd = timeToMinutes(a.endTime) || timeToMinutes(a.endTime) + (a.endTime === "00:00" || a.endTime === "01:00" ? 1440 : 0);
-  const bStart = timeToMinutes(b.startTime);
-  const bEnd = timeToMinutes(b.endTime) || timeToMinutes(b.endTime) + (b.endTime === "00:00" || b.endTime === "01:00" ? 1440 : 0);
-
+  const aStart = sortMinutes(a.startTime);
+  const aEnd = sortMinutes(a.endTime);
+  const bStart = sortMinutes(b.startTime);
+  const bEnd = sortMinutes(b.endTime);
   const aEndAdj = aEnd <= aStart ? aEnd + 1440 : aEnd;
   const bEndAdj = bEnd <= bStart ? bEnd + 1440 : bEnd;
-
   return aStart < bEndAdj && aEndAdj > bStart;
 }
 

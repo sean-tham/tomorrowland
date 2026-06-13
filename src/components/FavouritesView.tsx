@@ -1,6 +1,6 @@
 "use client";
 import { useMemo } from "react";
-import { LINEUP, setsClash, getSimilarSets,  TmlSet } from "@/data/lineup";
+import { LINEUP, setsClash, getSimilarSets, sortMinutes, TmlSet } from "@/data/lineup";
 import { SetCard } from "./SetCard";
 
 const DAY_LABELS: Record<string, string> = {
@@ -19,7 +19,7 @@ export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
   const favSets = useMemo(
     () => LINEUP.filter(s => favorites.includes(s.id)).sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return a.startTime.localeCompare(b.startTime);
+      return sortMinutes(a.startTime) - sortMinutes(b.startTime);
     }),
     [favorites]
   );
@@ -80,7 +80,7 @@ export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
           <h3 className="px-4 text-xs font-bold text-amber-400/80 uppercase tracking-widest mb-2">
             {DAY_LABELS[date]}
           </h3>
-          <div className="px-4 space-y-2">
+          <div className="px-4 space-y-1">
             {sets.map(set => (
               <SetCard
                 key={set.id}
@@ -101,14 +101,13 @@ export function FavouritesView({ favorites, onToggleFav, onSetClick }: Props) {
           <h3 className="px-4 text-xs font-bold text-white/40 uppercase tracking-widest mb-2">
             You might also like
           </h3>
-          <div className="px-4 space-y-2">
+          <div className="px-4 space-y-1">
             {suggestions.map(set => (
               <SetCard
                 key={set.id}
                 set={set}
                 isFav={false}
                 onToggleFav={onToggleFav}
-                compact
                 onClick={() => onSetClick(set)}
               />
             ))}

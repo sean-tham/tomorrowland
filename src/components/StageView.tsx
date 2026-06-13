@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { LINEUP, STAGES,  TmlSet } from "@/data/lineup";
+import { LINEUP, STAGES, sortMinutes, TmlSet } from "@/data/lineup";
 import { SetCard } from "./SetCard";
 
 const STAGE_ORDER = [
@@ -29,7 +29,7 @@ export function StageView({ favorites, onToggleFav, onSetClick }: Props) {
     return STAGE_ORDER.map(stageName => {
       const sets = LINEUP
         .filter(s => s.stage === stageName && s.date === activeDay)
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        .sort((a, b) => sortMinutes(a.startTime) - sortMinutes(b.startTime));
       return { stageName, sets };
     }).filter(s => s.sets.length > 0);
   }, [activeDay]);
@@ -102,14 +102,13 @@ export function StageView({ favorites, onToggleFav, onSetClick }: Props) {
 
               {/* Sets list */}
               {isOpen && (
-                <div className="px-4 pb-4 space-y-2">
+                <div className="px-4 pb-4 space-y-1">
                   {sets.map(set => (
                     <SetCard
                       key={set.id}
                       set={set}
                       isFav={favorites.includes(set.id)}
                       onToggleFav={onToggleFav}
-                      compact
                       onClick={() => onSetClick(set)}
                     />
                   ))}
