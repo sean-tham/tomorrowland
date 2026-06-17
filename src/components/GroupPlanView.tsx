@@ -53,25 +53,23 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     return mergedSets.filter(e => e.users.some(u => u.deviceId === filterUserId));
   }, [mergedSets, filterUserId]);
 
-  // Clashes: this set conflicts with another set liked by a DIFFERENT user
-  // (or self if same user has two overlapping sets)
-  function getClashes(entry: MergedSet): { set: TmlSet; users: GroupUser[] }[] {
+  // Clashes: only between different users — ignore same-person overlaps
+  function getClashes(entry: MergedSet): MergedSet[] {
     const ownerIds = new Set(entry.users.map(u => u.deviceId));
-    return mergedSets
-      .filter(other => other.set.id !== entry.set.id && setsClash(entry.set, other.set))
-      .filter(other => {
-        // Only show clash if at least one user of `other` is also an owner of `entry`
-        // (self-clash) OR the sets are liked by different people
-        return true;
-      });
+    return mergedSets.filter(other =>
+      other.set.id !== entry.set.id &&
+      setsClash(entry.set, other.set) &&
+      // At least one user of `other` is NOT an owner of this entry
+      other.users.some(u => !ownerIds.has(u.deviceId))
+    );
   }
 
   function clashLabel(clashes: MergedSet[], ownerIds: Set<string>): string {
     const names = new Set<string>();
     clashes.forEach(clash => {
-      clash.users.forEach(u => {
-        names.add(ownerIds.has(u.deviceId) ? "self" : u.name);
-      });
+      clash.users
+        .filter(u => !ownerIds.has(u.deviceId))
+        .forEach(u => names.add(u.name));
     });
     return Array.from(names).join(", ");
   }
