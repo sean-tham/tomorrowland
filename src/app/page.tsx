@@ -7,6 +7,7 @@ import { StageView } from "@/components/StageView";
 import { FavouritesView } from "@/components/FavouritesView";
 import { GroupPlanView } from "@/components/GroupPlanView";
 import { SetDetailModal } from "@/components/SetDetailModal";
+import { NavMenu } from "@/components/NavMenu";
 import dynamic from "next/dynamic";
 import { TmlSet } from "@/data/lineup";
 
@@ -21,8 +22,25 @@ const MapView = dynamic(() => import("@/components/MapView").then(m => m.MapView
 
 type Tab = "schedule" | "stages" | "map" | "favourites" | "group";
 
+const TAB_LABELS: Record<Tab, string> = {
+  schedule:   "Schedule",
+  stages:     "Stages",
+  map:        "Map",
+  favourites: "My Plan",
+  group:      "Group Plan",
+};
+
+const TAB_ICONS: Record<Tab, string> = {
+  schedule:   "🗓️",
+  stages:     "🎡",
+  map:        "🗺️",
+  favourites: "❤️",
+  group:      "👥",
+};
+
 export default function Home() {
   const [tab, setTab]           = useState<Tab>("schedule");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState<TmlSet | null>(null);
 
   const { favorites, toggle, isFav, clearAll, loaded } = useFavorites();
@@ -44,36 +62,46 @@ export default function Home() {
   const handleClose    = () => setSelectedSet(null);
   const handleUpload   = () => upload(favorites);
 
-  const NAV: { id: Tab; icon: string; label: string }[] = [
-    { id: "schedule",   icon: "🗓️",  label: "Schedule" },
-    { id: "stages",     icon: "🎡",  label: "Stages"   },
-    { id: "map",        icon: "🗺️",  label: "Map"      },
-    { id: "favourites", icon: "❤️",  label: "My Plan"  },
-    { id: "group",      icon: "👥",  label: "Group"    },
-  ];
-
   return (
     <div className="flex flex-col h-svh max-w-lg mx-auto overflow-hidden"
       style={{ background: "radial-gradient(ellipse at top, #1a0a2e 0%, #0a0a0f 60%)" }}>
 
       {/* Header */}
-      <header className="px-4 flex items-center gap-3"
+      <header className="px-4 flex items-center gap-3 pb-2"
         style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
-        <div className="flex-1">
-          <h1 className="text-lg font-black tracking-tight text-white leading-none">
-            Tomorrowland <span className="text-amber-400">2026</span>
-          </h1>
-          <p className="text-xs text-white/40 mt-0.5">Weekend 2 · July 24–26</p>
-        </div>
-        {favorites.length > 0 && (
-          <div className="glass px-2.5 py-1 rounded-full text-xs text-amber-400 font-semibold">
-            ❤️ {favorites.length}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{TAB_ICONS[tab]}</span>
+            <h1 className="text-base font-black tracking-tight text-white leading-none truncate">
+              {TAB_LABELS[tab]}
+            </h1>
           </div>
-        )}
+          <p className="text-xs text-white/30 mt-0.5 pl-6">Tomorrowland 2026 · W2</p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {favorites.length > 0 && (
+            <div className="glass px-2 py-1 rounded-full text-xs text-amber-400 font-semibold">
+              ❤️ {favorites.length}
+            </div>
+          )}
+          {/* Hamburger */}
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="glass w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+            aria-label="Open menu"
+          >
+            <div className="flex flex-col gap-1 w-4">
+              <span className="block h-0.5 bg-white/70 rounded-full" />
+              <span className="block h-0.5 bg-white/70 rounded-full w-3" />
+              <span className="block h-0.5 bg-white/70 rounded-full" />
+            </div>
+          </button>
+        </div>
       </header>
 
-      {/* Content */}
-      <main className="flex-1 overflow-hidden flex flex-col pt-2">
+      {/* Content — fills all remaining space */}
+      <main className="flex-1 overflow-hidden flex flex-col">
         {tab === "schedule" && (
           <ScheduleView favorites={favorites} onToggleFav={toggle} onSetClick={handleSetClick} />
         )}
@@ -101,19 +129,15 @@ export default function Home() {
         )}
       </main>
 
-      {/* Bottom nav */}
-      <nav className="glass-strong border-t border-white/5 flex items-center justify-around"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}>
-        {NAV.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex flex-col items-center gap-0.5 py-3 px-3 rounded-xl transition-all duration-200 ${
-              tab === t.id ? "text-amber-400" : "text-white/40"
-            }`}>
-            <span className="text-xl">{t.icon}</span>
-            <span className="text-[9px] font-semibold tracking-wide">{t.label}</span>
-          </button>
-        ))}
-      </nav>
+      {/* Nav menu overlay */}
+      {menuOpen && (
+        <NavMenu
+          activeTab={tab}
+          onSelect={t => setTab(t)}
+          onClose={() => setMenuOpen(false)}
+          favCount={favorites.length}
+        />
+      )}
 
       {/* Set detail modal */}
       {selectedSet && (
