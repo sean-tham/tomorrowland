@@ -4,6 +4,7 @@ import { LINEUP, setsClash, sortMinutes, formatTime, STAGES, TmlSet } from "@/da
 import { GroupUser } from "@/hooks/useGroupPlan";
 import { USER_COLORS } from "@/data/config";
 import { TmlLoader } from "./TmlLoader";
+import { GroupOverviewModal } from "./GroupOverviewModal";
 
 type DayFilter = "all" | "2026-07-24" | "2026-07-25" | "2026-07-26";
 type SortMode  = "time" | "popular" | "clashes";
@@ -29,15 +30,16 @@ interface Props {
   onSetClick: (set: TmlSet) => void;
 }
 
-type MergedSet = { set: TmlSet; users: GroupUser[] };
+type MergedEntry = { set: typeof LINEUP[0]; users: GroupUser[] };
 
 export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetClick }: Props) {
   useEffect(() => { onRefresh(); }, []);
 
-  const [filterUserId, setFilterUserId] = useState<string | null>(null);
-  const [dayFilter, setDayFilter]       = useState<DayFilter>("all");
-  const [sortMode, setSortMode]         = useState<SortMode>("time");
-  const [summaryOpen, setSummaryOpen]   = useState(true);
+  const [filterUserId,    setFilterUserId]    = useState<string | null>(null);
+  const [dayFilter,       setDayFilter]       = useState<DayFilter>("all");
+  const [sortMode,        setSortMode]        = useState<SortMode>("time");
+  const [showClashOnly,   setShowClashOnly]   = useState(false);
+  const [overviewOpen,    setOverviewOpen]    = useState(false);
 
   const userColors = useMemo(() => {
     const map: Record<string, string> = {};
@@ -46,7 +48,7 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
   }, [groupUsers]);
 
   const mergedSets = useMemo(() => {
-    const map = new Map<string, MergedSet>();
+    const map = new Map<string, MergedEntry>();
     groupUsers.forEach(user => {
       user.favorites.forEach(id => {
         const set = LINEUP.find(s => s.id === id);
@@ -58,37 +60,37 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     return Array.from(map.values());
   }, [groupUsers]);
 
-  function getClashes(entry: MergedSet): MergedSet[] {
+  function getClashes(entry: MergedEntry): MergedEntry[] {
     const ownerIds = new Set(entry.users.map(u => u.deviceId));
     return mergedSets.filter(other => {
       if (other.set.id === entry.set.id) return false;
       if (!setsClash(entry.set, other.set)) return false;
-      const otherOwnerIds = new Set(other.users.map(u => u.deviceId));
-      return (
-        other.users.some(u => !ownerIds.has(u.deviceId)) &&
-        entry.users.some(u => !otherOwnerIds.has(u.deviceId))
-      );
+      const otherIds = new Set(other.users.map(u => u.deviceId));
+      return other.users.some(u => !ownerIds.has(u.deviceId)) && entry.users.some(u => !otherIds.has(u.deviceId));
     });
   }
 
-  function clashLabel(clashes: MergedSet[], ownerIds: Set<string>): string {
+  function clashLabel(clashes: MergedEntry[], ownerIds: Set<string>): string {
     const names = new Set<string>();
     clashes.forEach(c => c.users.filter(u => !ownerIds.has(u.deviceId)).forEach(u => names.add(u.name)));
     return Array.from(names).join(", ");
   }
 
-  // Pre-compute clash counts for each merged set
   const clashCounts = useMemo(() => {
     const map = new Map<string, number>();
     mergedSets.forEach(e => { map.set(e.set.id, getClashes(e).length); });
     return map;
   }, [mergedSets]);
 
-  // Apply day + user filter, then sort
+  const clashingCount = useMemo(() =>
+    mergedSets.filter(e => (clashCounts.get(e.set.id) ?? 0) > 0).length,
+  [mergedSets, clashCounts]);
+
   const visible = useMemo(() => {
     let list = mergedSets;
-    if (dayFilter !== "all") list = list.filter(e => e.set.date === dayFilter);
-    if (filterUserId) list = list.filter(e => e.users.some(u => u.deviceId === filterUserId));
+    if (dayFilter !== "all")  list = list.filter(e => e.set.date === dayFilter);
+    if (filterUserId)         list = list.filter(e => e.users.some(u => u.deviceId === filterUserId));
+    if (showClashOnly)        list = list.filter(e => (clashCounts.get(e.set.id) ?? 0) > 0);
 
     switch (sortMode) {
       case "popular":
@@ -101,21 +103,9 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
           return sortMinutes(a.set.startTime) - sortMinutes(b.set.startTime);
         });
     }
-  }, [mergedSets, dayFilter, filterUserId, sortMode, clashCounts]);
+  }, [mergedSets, dayFilter, filterUserId, showClashOnly, sortMode, clashCounts]);
 
-  // Summary stats
-  const summary = useMemo(() => {
-    const totalSets   = mergedSets.length;
-    const totalClashes = mergedSets.filter(e => (clashCounts.get(e.set.id) ?? 0) > 0).length;
-    const mostWanted  = [...mergedSets].sort((a, b) => b.users.length - a.users.length)[0];
-    const clashiest   = [...mergedSets].sort((a, b) => (clashCounts.get(b.set.id) ?? 0) - (clashCounts.get(a.set.id) ?? 0))[0];
-    const clashiestN  = clashCounts.get(clashiest?.set.id ?? "") ?? 0;
-    return { totalSets, totalClashes, mostWanted, clashiest: clashiestN > 0 ? clashiest : null, clashiestN };
-  }, [mergedSets, clashCounts]);
-
-  if (loading && groupUsers.length === 0) {
-    return <TmlLoader label="Group Plan" />;
-  }
+  if (loading && groupUsers.length === 0) return <TmlLoader label="Group Plan" />;
 
   if (groupUsers.length === 0) {
     return (
@@ -125,24 +115,41 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
         <p className="text-white/50 text-sm leading-relaxed">
           Go to My Plan, enter your name and upload your favourites. Share the app link with your group.
         </p>
-        <button onClick={onRefresh} className="mt-6 px-5 py-2 glass rounded-xl text-sm text-white/60">
-          Refresh
-        </button>
+        <button onClick={onRefresh} className="mt-6 px-5 py-2 glass rounded-xl text-sm text-white/60">Refresh</button>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* Overview trigger — above user chips */}
+      <button
+        onClick={() => setOverviewOpen(true)}
+        className="mx-4 mt-3 mb-2 flex items-center justify-between px-4 py-3 rounded-2xl glass transition-all active:scale-[0.98]"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-lg">📊</span>
+          <div className="text-left">
+            <p className="text-sm font-bold text-white">Group Overview</p>
+            <p className="text-xs text-white/40">
+              {mergedSets.length} sets
+              {clashingCount > 0 && <span className="text-red-400"> · 💥 {clashingCount} clashes</span>}
+            </p>
+          </div>
+        </div>
+        <span className="text-white/30 text-xs">tap to expand →</span>
+      </button>
+
       {/* User chips + refresh */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-wrap">
+      <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
         {groupUsers.map(u => {
           const color    = userColors[u.deviceId];
           const isActive = filterUserId === u.deviceId;
           return (
             <button key={u.deviceId}
               onClick={() => setFilterUserId(isActive ? null : u.deviceId)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all duration-150 active:scale-95"
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all active:scale-95"
               style={{ background: isActive ? color : `${color}22`, color: isActive ? "#000" : color }}
             >
               <span className="w-2 h-2 rounded-full inline-block shrink-0"
@@ -152,9 +159,7 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
           );
         })}
         {filterUserId && (
-          <button onClick={() => setFilterUserId(null)} className="text-xs text-white/30 hover:text-white/60 transition-colors">
-            show all
-          </button>
+          <button onClick={() => setFilterUserId(null)} className="text-xs text-white/30 hover:text-white/60 transition-colors">show all</button>
         )}
         <button onClick={onRefresh} disabled={loading}
           className={`ml-auto text-sm text-white/30 hover:text-white/60 transition-colors shrink-0 ${loading ? "animate-spin" : ""}`}>
@@ -162,59 +167,8 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
         </button>
       </div>
 
-      {/* Collapsible summary */}
-      <div className="mx-4 mb-2 rounded-2xl glass overflow-hidden">
-        <button
-          onClick={() => setSummaryOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white">Group overview</span>
-            {summary.totalClashes > 0 && (
-              <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
-                💥 {summary.totalClashes} clashes
-              </span>
-            )}
-          </div>
-          <span className={`text-white/30 text-xs transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}>▾</span>
-        </button>
-
-        {summaryOpen && (
-          <div className="px-4 pb-4 grid grid-cols-2 gap-2 fade-in">
-            <div className="glass rounded-xl p-3">
-              <p className="text-2xl font-black text-amber-400">{summary.totalSets}</p>
-              <p className="text-xs text-white/50 mt-0.5">total sets saved</p>
-            </div>
-            <div className="glass rounded-xl p-3">
-              <p className="text-2xl font-black text-red-400">{summary.totalClashes}</p>
-              <p className="text-xs text-white/50 mt-0.5">sets with clashes</p>
-            </div>
-            {summary.mostWanted && summary.mostWanted.users.length > 1 && (
-              <div className="glass rounded-xl p-3 col-span-2">
-                <p className="text-xs text-white/40 uppercase tracking-widest font-bold mb-1">Most wanted</p>
-                <p className="text-sm font-bold text-white truncate">{summary.mostWanted.set.artist}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  {summary.mostWanted.users.map(u => (
-                    <div key={u.deviceId} className="w-2 h-2 rounded-full" style={{ background: userColors[u.deviceId] }} />
-                  ))}
-                  <span className="text-xs text-white/40 ml-1">{summary.mostWanted.users.length} people</span>
-                </div>
-              </div>
-            )}
-            {summary.clashiest && (
-              <div className="glass rounded-xl p-3 col-span-2">
-                <p className="text-xs text-white/40 uppercase tracking-widest font-bold mb-1">Most contested slot</p>
-                <p className="text-sm font-bold text-white truncate">{summary.clashiest.set.artist}</p>
-                <p className="text-xs text-red-400/80 mt-0.5">💥 {summary.clashiestN} clash{summary.clashiestN !== 1 ? "es" : ""}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Day filter + sort */}
+      {/* Day filter + sort + clash filter */}
       <div className="flex items-center gap-2 px-4 pb-2">
-        {/* Day tabs */}
         <div className="flex gap-1 flex-1">
           {DAY_TABS.map(d => (
             <button key={d.value} onClick={() => setDayFilter(d.value)}
@@ -225,26 +179,40 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
             </button>
           ))}
         </div>
-        {/* Sort */}
-        <select
-          value={sortMode}
-          onChange={e => setSortMode(e.target.value as SortMode)}
+        {clashingCount > 0 && (
+          <button
+            onClick={() => setShowClashOnly(o => !o)}
+            className={`shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              showClashOnly ? "bg-red-500/80 text-white" : "glass text-red-400/70"
+            }`}
+          >
+            💥 {clashingCount}
+          </button>
+        )}
+        <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)}
           className="glass text-xs text-white/60 rounded-lg px-2 py-1.5 outline-none bg-transparent border-0 cursor-pointer shrink-0"
-          style={{ background: "rgba(255,255,255,0.07)" }}
-        >
+          style={{ background: "rgba(255,255,255,0.07)" }}>
           <option value="time"    style={{ background: "#1a0a2e" }}>By time</option>
           <option value="popular" style={{ background: "#1a0a2e" }}>Most liked</option>
           <option value="clashes" style={{ background: "#1a0a2e" }}>Most clashes</option>
         </select>
       </div>
 
+      {/* Active filters pill */}
+      {showClashOnly && (
+        <div className="px-4 pb-2">
+          <span className="inline-flex items-center gap-1.5 text-xs bg-red-500/15 text-red-400 px-3 py-1 rounded-full">
+            💥 Showing clashes only
+            <button onClick={() => setShowClashOnly(false)} className="text-red-400/60 hover:text-red-400 ml-0.5">✕</button>
+          </span>
+        </div>
+      )}
+
       {/* Set list */}
       <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-1.5">
         {visible.length === 0 && (
           <div className="text-center text-white/30 py-16 text-sm">No sets found</div>
         )}
-
-        {/* Group by day when viewing all + sorted by time */}
         {dayFilter === "all" && sortMode === "time" ? (
           DAYS.map(date => {
             const daySets = visible.filter(e => e.set.date === date);
@@ -253,33 +221,48 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
               <div key={date}>
                 <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest pt-2 pb-1.5">{DAY_LABELS[date]}</p>
                 <div className="space-y-1.5">
-                  {daySets.map(entry => <SetRow key={entry.set.id} entry={entry} userColors={userColors} getClashes={getClashes} clashLabel={clashLabel} onSetClick={onSetClick} />)}
+                  {daySets.map(entry => (
+                    <SetRow key={entry.set.id} entry={entry} userColors={userColors}
+                      getClashes={getClashes} clashLabel={clashLabel} onSetClick={onSetClick} />
+                  ))}
                 </div>
               </div>
             );
           })
         ) : (
           visible.map(entry => (
-            <SetRow key={entry.set.id} entry={entry} userColors={userColors} getClashes={getClashes} clashLabel={clashLabel} onSetClick={onSetClick} />
+            <SetRow key={entry.set.id} entry={entry} userColors={userColors}
+              getClashes={getClashes} clashLabel={clashLabel} onSetClick={onSetClick} />
           ))
         )}
       </div>
+
+      {/* Overview modal */}
+      {overviewOpen && (
+        <GroupOverviewModal
+          groupUsers={groupUsers}
+          deviceId={deviceId}
+          onClose={() => setOverviewOpen(false)}
+          onFilterClashes={() => { setShowClashOnly(true); }}
+          clashingCount={clashingCount}
+        />
+      )}
     </div>
   );
 }
 
 function SetRow({ entry, userColors, getClashes, clashLabel, onSetClick }: {
-  entry: MergedSet;
+  entry: MergedEntry;
   userColors: Record<string, string>;
-  getClashes: (e: MergedSet) => MergedSet[];
-  clashLabel: (clashes: MergedSet[], ownerIds: Set<string>) => string;
+  getClashes: (e: MergedEntry) => MergedEntry[];
+  clashLabel: (clashes: MergedEntry[], ownerIds: Set<string>) => string;
   onSetClick: (set: TmlSet) => void;
 }) {
   const { set, users } = entry;
-  const clashes    = getClashes(entry);
-  const ownerIds   = new Set(users.map(u => u.deviceId));
-  const stage      = STAGES[set.stage];
-  const multiUser  = users.length > 1;
+  const clashes     = getClashes(entry);
+  const ownerIds    = new Set(users.map(u => u.deviceId));
+  const stage       = STAGES[set.stage];
+  const multiUser   = users.length > 1;
   const borderColor = multiUser ? "#f59e0b" : userColors[users[0]?.deviceId] ?? "#f59e0b";
 
   return (
