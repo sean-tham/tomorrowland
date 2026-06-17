@@ -1,14 +1,15 @@
 "use client";
 import { useState } from "react";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useGroupPlan } from "@/hooks/useGroupPlan";
 import { ScheduleView } from "@/components/ScheduleView";
 import { StageView } from "@/components/StageView";
 import { FavouritesView } from "@/components/FavouritesView";
+import { GroupPlanView } from "@/components/GroupPlanView";
 import { SetDetailModal } from "@/components/SetDetailModal";
 import dynamic from "next/dynamic";
 import { TmlSet } from "@/data/lineup";
 
-// Dynamic import so Leaflet (browser-only) is never loaded on the server
 const MapView = dynamic(() => import("@/components/MapView").then(m => m.MapView), {
   ssr: false,
   loading: () => (
@@ -18,12 +19,17 @@ const MapView = dynamic(() => import("@/components/MapView").then(m => m.MapView
   ),
 });
 
-type Tab = "schedule" | "stages" | "map" | "favourites";
+type Tab = "schedule" | "stages" | "map" | "favourites" | "group";
 
 export default function Home() {
-  const [tab, setTab] = useState<Tab>("schedule");
+  const [tab, setTab]           = useState<Tab>("schedule");
   const [selectedSet, setSelectedSet] = useState<TmlSet | null>(null);
+
   const { favorites, toggle, isFav, clearAll, loaded } = useFavorites();
+  const {
+    deviceId, displayName, setDisplayName,
+    upload, loadGroup, groupUsers, uploading, loading, lastSynced, uploadError,
+  } = useGroupPlan();
 
   if (!loaded) {
     return (
@@ -34,12 +40,24 @@ export default function Home() {
   }
 
   const handleSetClick = (set: TmlSet) => setSelectedSet(set);
-  const handleClose = () => setSelectedSet(null);
+  const handleClose    = () => setSelectedSet(null);
+  const handleUpload   = () => upload(favorites);
+
+  const NAV: { id: Tab; icon: string; label: string }[] = [
+    { id: "schedule",   icon: "🗓️",  label: "Schedule" },
+    { id: "stages",     icon: "🎡",  label: "Stages"   },
+    { id: "map",        icon: "🗺️",  label: "Map"      },
+    { id: "favourites", icon: "❤️",  label: "My Plan"  },
+    { id: "group",      icon: "👥",  label: "Group"    },
+  ];
 
   return (
-    <div className="flex flex-col h-svh max-w-lg mx-auto overflow-hidden" style={{ background: "radial-gradient(ellipse at top, #1a0a2e 0%, #0a0a0f 60%)" }}>
+    <div className="flex flex-col h-svh max-w-lg mx-auto overflow-hidden"
+      style={{ background: "radial-gradient(ellipse at top, #1a0a2e 0%, #0a0a0f 60%)" }}>
+
       {/* Header */}
-      <header className="px-4 flex items-center gap-3" style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
+      <header className="px-4 flex items-center gap-3"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
         <div className="flex-1">
           <h1 className="text-lg font-black tracking-tight text-white leading-none">
             Tomorrowland <span className="text-amber-400">2026</span>
@@ -65,30 +83,31 @@ export default function Home() {
           <MapView favorites={favorites} onSetClick={handleSetClick} onToggleFav={toggle} />
         )}
         {tab === "favourites" && (
-          <FavouritesView favorites={favorites} onToggleFav={toggle} onClearAll={clearAll} onSetClick={handleSetClick} />
+          <FavouritesView
+            favorites={favorites} onToggleFav={toggle} onClearAll={clearAll} onSetClick={handleSetClick}
+            displayName={displayName} onSetName={setDisplayName}
+            onUpload={handleUpload} uploading={uploading}
+            lastSynced={lastSynced} uploadError={uploadError}
+          />
+        )}
+        {tab === "group" && (
+          <GroupPlanView
+            groupUsers={groupUsers} deviceId={deviceId}
+            loading={loading} onRefresh={loadGroup} onSetClick={handleSetClick}
+          />
         )}
       </main>
 
       {/* Bottom nav */}
-      <nav
-        className="glass-strong border-t border-white/5 flex items-center justify-around"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}
-      >
-        {([
-          { id: "schedule", icon: "🗓️", label: "Schedule" },
-          { id: "stages",   icon: "🎡", label: "Stages" },
-          { id: "map",      icon: "🗺️", label: "Map" },
-          { id: "favourites", icon: "❤️", label: "My Plan" },
-        ] as { id: Tab; icon: string; label: string }[]).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex flex-col items-center gap-0.5 py-3 px-4 rounded-xl transition-all duration-200 ${
+      <nav className="glass-strong border-t border-white/5 flex items-center justify-around"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}>
+        {NAV.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex flex-col items-center gap-0.5 py-3 px-3 rounded-xl transition-all duration-200 ${
               tab === t.id ? "text-amber-400" : "text-white/40"
-            }`}
-          >
+            }`}>
             <span className="text-xl">{t.icon}</span>
-            <span className="text-[10px] font-semibold tracking-wide">{t.label}</span>
+            <span className="text-[9px] font-semibold tracking-wide">{t.label}</span>
           </button>
         ))}
       </nav>
@@ -96,12 +115,9 @@ export default function Home() {
       {/* Set detail modal */}
       {selectedSet && (
         <SetDetailModal
-          set={selectedSet}
-          isFav={isFav(selectedSet.id)}
-          favorites={favorites}
-          onToggleFav={toggle}
-          onClose={handleClose}
-          onSetClick={(s) => setSelectedSet(s)}
+          set={selectedSet} isFav={isFav(selectedSet.id)}
+          favorites={favorites} onToggleFav={toggle}
+          onClose={handleClose} onSetClick={s => setSelectedSet(s)}
         />
       )}
     </div>

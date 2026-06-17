@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import { LINEUP, setsClash, getSimilarSets, sortMinutes, TmlSet } from "@/data/lineup";
 import { SetCard } from "./SetCard";
+import { SharePanel } from "./SharePanel";
 
 const DAY_LABELS: Record<string, string> = {
   "2026-07-24": "Friday · July 24",
@@ -14,9 +15,15 @@ interface Props {
   onToggleFav: (id: string) => void;
   onClearAll: () => void;
   onSetClick: (set: TmlSet) => void;
+  displayName: string;
+  onSetName: (name: string) => void;
+  onUpload: () => void;
+  uploading: boolean;
+  lastSynced: string | null;
+  uploadError: string | null;
 }
 
-export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick }: Props) {
+export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick, displayName, onSetName, onUpload, uploading, lastSynced, uploadError }: Props) {
   const favSets = useMemo(
     () => LINEUP.filter(s => favorites.includes(s.id)).sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -55,18 +62,32 @@ export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick 
 
   if (favorites.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-8 pb-24 text-center fade-in">
-        <div className="text-6xl mb-4">🎪</div>
-        <h2 className="text-xl font-bold text-white mb-2">No favourites yet</h2>
-        <p className="text-white/50 text-sm leading-relaxed">
-          Tap the heart on any set to save it here. We&apos;ll help you spot clashes and find similar artists.
-        </p>
+      <div className="flex flex-col h-full overflow-y-auto pb-24 fade-in">
+        <SharePanel
+          displayName={displayName} onSetName={onSetName} onUpload={onUpload}
+          uploading={uploading} lastSynced={lastSynced} uploadError={uploadError}
+          favoriteCount={0}
+        />
+        <div className="flex flex-col items-center justify-center flex-1 px-8 text-center">
+          <div className="text-6xl mb-4">🎪</div>
+          <h2 className="text-xl font-bold text-white mb-2">No favourites yet</h2>
+          <p className="text-white/50 text-sm leading-relaxed">
+            Tap the heart on any set to save it here. We&apos;ll help you spot clashes and find similar artists.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex-1 overflow-y-auto pb-24 fade-in">
+      {/* Share panel */}
+      <SharePanel
+        displayName={displayName} onSetName={onSetName} onUpload={onUpload}
+        uploading={uploading} lastSynced={lastSynced} uploadError={uploadError}
+        favoriteCount={favorites.length}
+      />
+
       {/* Header row */}
       <div className="flex items-center justify-between px-4 pt-1 pb-2">
         <p className="text-xs text-white/40">{favorites.length} set{favorites.length !== 1 ? "s" : ""} saved</p>
