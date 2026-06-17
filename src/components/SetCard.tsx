@@ -36,7 +36,7 @@ export function SetCard({ set, isFav, onToggleFav, clashing, onClick }: Props) {
             </span>
           )}
           {clashing && (
-            <span className="text-xs text-red-400">⚡</span>
+            <span className="text-xs text-red-400">💥</span>
           )}
         </div>
         <p className="text-xs mt-0.5 truncate" style={{ color: `${stageColor}99` }}>{set.stage}</p>

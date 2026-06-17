@@ -134,7 +134,7 @@ export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick,
       {/* Clash warning */}
       {clashPairs.size > 0 && (
         <div className="mx-4 mb-3 p-3 rounded-2xl bg-red-500/10 border border-red-500/20">
-          <p className="text-sm font-semibold text-red-400">⚡ {clashPairs.size} sets are clashing</p>
+          <p className="text-sm font-semibold text-red-400">💥 {clashPairs.size} sets are clashing</p>
           <p className="text-xs text-red-400/70 mt-0.5">Sets marked below overlap in time</p>
         </div>
       )}
