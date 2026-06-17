@@ -18,12 +18,15 @@ interface Props {
   displayName: string;
   onSetName: (name: string) => void;
   onUpload: () => void;
+  onRemove: () => void;
   uploading: boolean;
+  removing: boolean;
+  isUpToDate: boolean;
   lastSynced: string | null;
   uploadError: string | null;
 }
 
-export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick, displayName, onSetName, onUpload, uploading, lastSynced, uploadError }: Props) {
+export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick, displayName, onSetName, onUpload, onRemove, uploading, removing, isUpToDate, lastSynced, uploadError }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
 
   const favSets = useMemo(
@@ -85,9 +88,9 @@ export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick,
         </div>
         {shareOpen && (
           <SharePanel
-            displayName={displayName} onSetName={onSetName} onUpload={onUpload}
-            uploading={uploading} lastSynced={lastSynced} uploadError={uploadError}
-            favoriteCount={0}
+            displayName={displayName} onSetName={onSetName} onUpload={onUpload} onRemove={onRemove}
+            uploading={uploading} removing={removing} isUpToDate={isUpToDate}
+            lastSynced={lastSynced} uploadError={uploadError} favoriteCount={0}
           />
         )}
         <div className="flex flex-col items-center justify-center flex-1 px-8 text-center">
@@ -121,8 +124,9 @@ export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick,
       {shareOpen && (
         <SharePanel
           displayName={displayName} onSetName={onSetName}
-          onUpload={() => { onUpload(); }}
-          uploading={uploading} lastSynced={lastSynced} uploadError={uploadError}
+          onUpload={onUpload} onRemove={onRemove}
+          uploading={uploading} removing={removing} isUpToDate={isUpToDate}
+          lastSynced={lastSynced} uploadError={uploadError}
           favoriteCount={favorites.length}
         />
       )}

@@ -28,7 +28,8 @@ export default function Home() {
   const { favorites, toggle, isFav, clearAll, loaded } = useFavorites();
   const {
     deviceId, displayName, setDisplayName,
-    upload, loadGroup, groupUsers, uploading, loading, lastSynced, uploadError,
+    upload, removeFromGroup, loadGroup,
+    groupUsers, uploading, removing, loading, lastSynced, uploadError, isUpToDate,
   } = useGroupPlan();
 
   if (!loaded) {
@@ -86,7 +87,9 @@ export default function Home() {
           <FavouritesView
             favorites={favorites} onToggleFav={toggle} onClearAll={clearAll} onSetClick={handleSetClick}
             displayName={displayName} onSetName={setDisplayName}
-            onUpload={handleUpload} uploading={uploading}
+            onUpload={handleUpload} onRemove={removeFromGroup}
+            uploading={uploading} removing={removing}
+            isUpToDate={isUpToDate(favorites)}
             lastSynced={lastSynced} uploadError={uploadError}
           />
         )}

@@ -9,9 +9,10 @@ export interface GroupUser {
   favorites: string[];
 }
 
-const DEVICE_KEY = "tml2026-deviceId";
-const NAME_KEY   = "tml2026-displayName";
-const SYNCED_KEY = "tml2026-lastSynced";
+const DEVICE_KEY          = "tml2026-deviceId";
+const NAME_KEY            = "tml2026-displayName";
+const SYNCED_KEY          = "tml2026-lastSynced";
+const UPLOADED_FAVS_KEY   = "tml2026-uploadedFavs";
 
 function getOrCreateDeviceId(): string {
   try {
@@ -25,27 +26,52 @@ function getOrCreateDeviceId(): string {
   }
 }
 
+// Use an Image request — browsers never CORS-block image loads, so the
+// Apps Script always receives the request regardless of redirect chain.
+function fireAndForget(url: string): Promise<void> {
+  return new Promise(resolve => {
+    const img = new window.Image();
+    img.onload = img.onerror = () => resolve();
+    img.src = url;
+    // Fallback resolve in case the browser never fires events
+    setTimeout(resolve, 8000);
+  });
+}
+
+function favKey(favs: string[]) {
+  return [...favs].sort().join(",");
+}
+
 export function useGroupPlan() {
-  const [deviceId, setDeviceId]            = useState("");
-  const [displayName, setDisplayNameState] = useState("");
-  const [groupUsers, setGroupUsers]        = useState<GroupUser[]>([]);
-  const [uploading, setUploading]          = useState(false);
-  const [loading, setLoading]              = useState(false);
-  const [lastSynced, setLastSynced]        = useState<string | null>(null);
-  const [uploadError, setUploadError]      = useState<string | null>(null);
+  const [deviceId, setDeviceId]              = useState("");
+  const [displayName, setDisplayNameState]   = useState("");
+  const [groupUsers, setGroupUsers]          = useState<GroupUser[]>([]);
+  const [uploading, setUploading]            = useState(false);
+  const [removing, setRemoving]              = useState(false);
+  const [loading, setLoading]                = useState(false);
+  const [lastSynced, setLastSynced]          = useState<string | null>(null);
+  const [uploadError, setUploadError]        = useState<string | null>(null);
+  const [uploadedFavKey, setUploadedFavKey]  = useState<string | null>(null);
 
   useEffect(() => {
-    const id   = getOrCreateDeviceId();
-    const name = localStorage.getItem(NAME_KEY) ?? "";
-    const sync = localStorage.getItem(SYNCED_KEY);
+    const id       = getOrCreateDeviceId();
+    const name     = localStorage.getItem(NAME_KEY) ?? "";
+    const sync     = localStorage.getItem(SYNCED_KEY);
+    const prevFavs = localStorage.getItem(UPLOADED_FAVS_KEY);
     setDeviceId(id);
     setDisplayNameState(name);
     if (sync) setLastSynced(sync);
+    if (prevFavs) setUploadedFavKey(prevFavs);
   }, []);
 
   const setDisplayName = useCallback((name: string) => {
     setDisplayNameState(name);
-    try { localStorage.setItem(NAME_KEY, name); } catch {}
+    // Name change means the upload is stale
+    setUploadedFavKey(null);
+    try {
+      localStorage.setItem(NAME_KEY, name);
+      localStorage.removeItem(UPLOADED_FAVS_KEY);
+    } catch {}
   }, []);
 
   const upload = useCallback(async (favorites: string[]) => {
@@ -59,32 +85,50 @@ export function useGroupPlan() {
         name:      displayName.trim(),
         favorites: JSON.stringify(favorites),
       });
-      // Apps Script redirects to googleusercontent.com — mode:'no-cors' is the
-      // reliable cross-origin approach. We can't read the response body but the
-      // script still executes and writes to the sheet.
-      await fetch(`${APPS_SCRIPT_URL}?${params}`, {
-        method: "GET",
-        mode:   "no-cors",
-      });
-      // Assume success (no-cors means opaque response — can't inspect it)
+      await fireAndForget(`${APPS_SCRIPT_URL}?${params}`);
+
       const now = new Date().toISOString();
+      const key = favKey(favorites);
       setLastSynced(now);
-      try { localStorage.setItem(SYNCED_KEY, now); } catch {}
+      setUploadedFavKey(key);
+      try {
+        localStorage.setItem(SYNCED_KEY, now);
+        localStorage.setItem(UPLOADED_FAVS_KEY, key);
+      } catch {}
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed — check connection");
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
   }, [deviceId, displayName]);
 
-  const loadGroup = useCallback(async () => {
-    setLoading(true);
+  const removeFromGroup = useCallback(async () => {
+    if (!deviceId) return;
+    setRemoving(true);
     setUploadError(null);
     try {
-      // Regular fetch works for GET loads — Apps Script sets CORS * on the redirect
+      const params = new URLSearchParams({ action: "delete", deviceId });
+      await fireAndForget(`${APPS_SCRIPT_URL}?${params}`);
+
+      setLastSynced(null);
+      setUploadedFavKey(null);
+      try {
+        localStorage.removeItem(SYNCED_KEY);
+        localStorage.removeItem(UPLOADED_FAVS_KEY);
+      } catch {}
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setRemoving(false);
+    }
+  }, [deviceId]);
+
+  const loadGroup = useCallback(async () => {
+    setLoading(true);
+    try {
       const res  = await fetch(`${APPS_SCRIPT_URL}?action=load`);
       const data = await res.json();
-      setGroupUsers(data.users ?? []);
+      setGroupUsers((data.users ?? []).filter((u: GroupUser) => u.favorites.length > 0));
     } catch (err) {
       console.error("Group load failed:", err);
     } finally {
@@ -92,9 +136,15 @@ export function useGroupPlan() {
     }
   }, []);
 
+  const isUpToDate = useCallback((favorites: string[]) => {
+    if (!uploadedFavKey || !lastSynced) return false;
+    return favKey(favorites) === uploadedFavKey;
+  }, [uploadedFavKey, lastSynced]);
+
   return {
     deviceId, displayName, setDisplayName,
-    upload, loadGroup,
-    groupUsers, uploading, loading, lastSynced, uploadError,
+    upload, removeFromGroup, loadGroup,
+    groupUsers, uploading, removing, loading,
+    lastSynced, uploadError, isUpToDate,
   };
 }
