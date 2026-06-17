@@ -53,15 +53,22 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     return mergedSets.filter(e => e.users.some(u => u.deviceId === filterUserId));
   }, [mergedSets, filterUserId]);
 
-  // Clashes: only between different users — ignore same-person overlaps
+  // True cross-user clash: set A vs set B only counts if:
+  // - B has a user who didn't pick A (they'd miss A for B)
+  // - AND A has a user who didn't pick B (they'd miss B for A)
+  // This prevents flagging shared sets as clashes and avoids implicating
+  // users in conflicts caused by someone else's self-overlap.
   function getClashes(entry: MergedSet): MergedSet[] {
     const ownerIds = new Set(entry.users.map(u => u.deviceId));
-    return mergedSets.filter(other =>
-      other.set.id !== entry.set.id &&
-      setsClash(entry.set, other.set) &&
-      // At least one user of `other` is NOT an owner of this entry
-      other.users.some(u => !ownerIds.has(u.deviceId))
-    );
+    return mergedSets.filter(other => {
+      if (other.set.id === entry.set.id) return false;
+      if (!setsClash(entry.set, other.set)) return false;
+      const otherOwnerIds = new Set(other.users.map(u => u.deviceId));
+      return (
+        other.users.some(u => !ownerIds.has(u.deviceId)) &&
+        entry.users.some(u => !otherOwnerIds.has(u.deviceId))
+      );
+    });
   }
 
   function clashLabel(clashes: MergedSet[], ownerIds: Set<string>): string {
