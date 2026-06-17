@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LINEUP, setsClash, sortMinutes, formatTime, STAGES, TmlSet } from "@/data/lineup";
 import { GroupUser } from "@/hooks/useGroupPlan";
 import { USER_COLORS } from "@/data/config";
@@ -20,7 +20,9 @@ interface Props {
 }
 
 export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetClick }: Props) {
-  useEffect(() => { onRefresh(); }, []);  // load on mount
+  useEffect(() => { onRefresh(); }, []);
+
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
 
   const userColors = useMemo(() => {
     const map: Record<string, string> = {};
@@ -28,7 +30,7 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     return map;
   }, [groupUsers]);
 
-  // Build a flat list of { set, user } entries with clash info
+  // All { set, user } entries (full group)
   const enriched = useMemo(() => {
     return groupUsers.flatMap(user =>
       user.favorites.map(id => {
@@ -38,11 +40,21 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     );
   }, [groupUsers]);
 
-  // For each set+user, find which other users' sets it clashes with
+  // Entries after user filter applied
+  const visible = useMemo(() => {
+    if (!filterUserId) return enriched;
+    return enriched.filter(e => e.user.deviceId === filterUserId);
+  }, [enriched, filterUserId]);
+
   function getClashes(set: TmlSet, userId: string) {
-    return enriched.filter(e =>
-      e.user.deviceId !== userId && setsClash(set, e.set)
-    );
+    // Check against full enriched list (not filtered) so clashes still show
+    return enriched.filter(e => e.user.deviceId !== userId && setsClash(set, e.set));
+  }
+
+  function clashLabel(clashes: { set: TmlSet; user: GroupUser }[], ownerDeviceId: string) {
+    return clashes.map(c =>
+      c.user.deviceId === ownerDeviceId ? "self" : c.user.name
+    ).join(", ");
   }
 
   if (groupUsers.length === 0 && !loading) {
@@ -62,16 +74,36 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header — tappable user chips */}
       <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {groupUsers.map(u => (
-            <span key={u.deviceId} className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: `${userColors[u.deviceId]}22`, color: userColors[u.deviceId] }}>
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: userColors[u.deviceId] }} />
-              {u.deviceId === deviceId ? `${u.name} (you)` : u.name}
-            </span>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          {groupUsers.map(u => {
+            const color    = userColors[u.deviceId];
+            const isActive = filterUserId === u.deviceId;
+            const isMe     = u.deviceId === deviceId;
+            return (
+              <button
+                key={u.deviceId}
+                onClick={() => setFilterUserId(isActive ? null : u.deviceId)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all duration-150 active:scale-95"
+                style={{
+                  background: isActive ? color : `${color}22`,
+                  color: isActive ? "#000" : color,
+                  outline: isActive ? "none" : undefined,
+                }}
+              >
+                <span className="w-2 h-2 rounded-full inline-block shrink-0"
+                  style={{ background: isActive ? "rgba(0,0,0,0.4)" : color }} />
+                {isMe ? `${u.name} (you)` : u.name}
+              </button>
+            );
+          })}
+          {filterUserId && (
+            <button onClick={() => setFilterUserId(null)}
+              className="text-xs text-white/30 hover:text-white/60 transition-colors">
+              show all
+            </button>
+          )}
         </div>
         <button onClick={onRefresh} disabled={loading}
           className={`text-xs text-white/40 hover:text-white transition-colors ml-2 shrink-0 ${loading ? "animate-pulse" : ""}`}>
@@ -82,7 +114,7 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
       {/* Days */}
       <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-6">
         {DAYS.map(date => {
-          const daySets = enriched
+          const daySets = visible
             .filter(e => e.set.date === date)
             .sort((a, b) => sortMinutes(a.set.startTime) - sortMinutes(b.set.startTime));
 
@@ -127,13 +159,13 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
                         </p>
                         {clashes.length > 0 && (
                           <p className="text-xs text-red-400 mt-0.5">
-                            ⚡ clashes with {clashes.map(c => c.user.name).join(", ")}
+                            💥 clashes with {clashLabel(clashes, user.deviceId)}
                           </p>
                         )}
                       </div>
 
-                      {/* Who favourited it */}
-                      <div className="shrink-0 flex items-center gap-0.5">
+                      {/* User dot */}
+                      <div className="shrink-0">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} title={user.name} />
                       </div>
                     </div>
@@ -143,6 +175,10 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
             </div>
           );
         })}
+
+        {visible.length === 0 && !loading && (
+          <div className="text-center text-white/30 py-16 text-sm">No sets found</div>
+        )}
       </div>
     </div>
   );
