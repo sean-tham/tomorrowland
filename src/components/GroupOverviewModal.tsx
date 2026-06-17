@@ -172,7 +172,7 @@ export function GroupOverviewModal({ groupUsers, deviceId, onClose, onFilterClas
       <div className="relative w-full max-w-lg rounded-t-3xl glass-strong overflow-y-auto fade-in"
         style={{ maxHeight: "92vh", paddingBottom: "max(env(safe-area-inset-bottom,0px),24px)" }}>
 
-        {/* Handle + back */}
+        {/* Handle + back + close */}
         <div className="flex items-center px-4 pt-4 pb-2 gap-3 sticky top-0 glass-strong z-10">
           <button onClick={onClose}
             className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-sm font-medium">
@@ -182,7 +182,10 @@ export function GroupOverviewModal({ groupUsers, deviceId, onClose, onFilterClas
           <div className="flex-1 flex justify-center">
             <div className="w-8 h-1 bg-white/20 rounded-full" />
           </div>
-          <div className="w-14" />
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full glass flex items-center justify-center text-white/50 hover:text-white transition-colors text-sm">
+            ✕
+          </button>
         </div>
 
         <div className="px-4 pt-2 pb-2">
@@ -252,7 +255,7 @@ export function GroupOverviewModal({ groupUsers, deviceId, onClose, onFilterClas
 
           {/* Best pairing */}
           {s.bestPairA && s.bestPairB && s.bestPairCount > 0 && (
-            <StatCard emoji="👯" title="Festival Soulmates">
+            <StatCard emoji="👯" title="Festival Buddies">
               <div className="flex items-center gap-2 flex-wrap">
                 <Dot user={s.bestPairA} />
                 <span className="text-white/40 text-xs">&amp;</span>
