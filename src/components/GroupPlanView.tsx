@@ -30,31 +30,50 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
     return map;
   }, [groupUsers]);
 
-  // All { set, user } entries (full group)
-  const enriched = useMemo(() => {
-    return groupUsers.flatMap(user =>
-      user.favorites.map(id => {
+  // Merge by set.id — each entry has the set + all users who liked it
+  type MergedSet = { set: TmlSet; users: GroupUser[] };
+
+  const mergedSets = useMemo(() => {
+    const map = new Map<string, MergedSet>();
+    groupUsers.forEach(user => {
+      user.favorites.forEach(id => {
         const set = LINEUP.find(s => s.id === id);
-        return set ? { set, user } : null;
-      }).filter(Boolean) as { set: TmlSet; user: GroupUser }[]
-    );
+        if (!set) return;
+        if (!map.has(id)) map.set(id, { set, users: [] });
+        map.get(id)!.users.push(user);
+      });
+    });
+    return Array.from(map.values());
   }, [groupUsers]);
 
-  // Entries after user filter applied
+  // Visible after filter: show rows where the filtered user liked the set,
+  // but keep all users' dots visible
   const visible = useMemo(() => {
-    if (!filterUserId) return enriched;
-    return enriched.filter(e => e.user.deviceId === filterUserId);
-  }, [enriched, filterUserId]);
+    if (!filterUserId) return mergedSets;
+    return mergedSets.filter(e => e.users.some(u => u.deviceId === filterUserId));
+  }, [mergedSets, filterUserId]);
 
-  function getClashes(set: TmlSet, userId: string) {
-    // Check against full enriched list (not filtered) so clashes still show
-    return enriched.filter(e => e.user.deviceId !== userId && setsClash(set, e.set));
+  // Clashes: this set conflicts with another set liked by a DIFFERENT user
+  // (or self if same user has two overlapping sets)
+  function getClashes(entry: MergedSet): { set: TmlSet; users: GroupUser[] }[] {
+    const ownerIds = new Set(entry.users.map(u => u.deviceId));
+    return mergedSets
+      .filter(other => other.set.id !== entry.set.id && setsClash(entry.set, other.set))
+      .filter(other => {
+        // Only show clash if at least one user of `other` is also an owner of `entry`
+        // (self-clash) OR the sets are liked by different people
+        return true;
+      });
   }
 
-  function clashLabel(clashes: { set: TmlSet; user: GroupUser }[], ownerDeviceId: string) {
-    return clashes.map(c =>
-      c.user.deviceId === ownerDeviceId ? "self" : c.user.name
-    ).join(", ");
+  function clashLabel(clashes: MergedSet[], ownerIds: Set<string>): string {
+    const names = new Set<string>();
+    clashes.forEach(clash => {
+      clash.users.forEach(u => {
+        names.add(ownerIds.has(u.deviceId) ? "self" : u.name);
+      });
+    });
+    return Array.from(names).join(", ");
   }
 
   if (groupUsers.length === 0 && !loading) {
@@ -126,15 +145,20 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
                 {DAY_LABELS[date]}
               </p>
               <div className="space-y-1.5">
-                {daySets.map(({ set, user }, idx) => {
-                  const clashes = getClashes(set, user.deviceId);
-                  const color   = userColors[user.deviceId];
-                  const stage   = STAGES[set.stage];
+                {daySets.map((entry) => {
+                  const { set, users } = entry;
+                  const clashes  = getClashes(entry);
+                  const ownerIds = new Set(users.map(u => u.deviceId));
+                  const stage    = STAGES[set.stage];
+                  const multiUser = users.length > 1;
+                  // Border colour: if multiple users, use white/gold; else single user colour
+                  const borderColor = multiUser ? "#f59e0b" : userColors[users[0]?.deviceId] ?? "#f59e0b";
+                  const bgColor     = multiUser ? "#f59e0b" : userColors[users[0]?.deviceId] ?? "#f59e0b";
 
                   return (
-                    <div key={`${set.id}-${user.deviceId}-${idx}`}
+                    <div key={set.id}
                       className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer active:scale-[0.98] transition-all ${clashes.length > 0 ? "ring-1 ring-red-500/40" : ""}`}
-                      style={{ background: `${color}10`, borderLeft: `2px solid ${color}` }}
+                      style={{ background: `${bgColor}10`, borderLeft: `2px solid ${borderColor}` }}
                       onClick={() => onSetClick(set)}
                     >
                       {/* Time */}
@@ -149,24 +173,35 @@ export function GroupPlanView({ groupUsers, deviceId, loading, onRefresh, onSetC
                           <span className="text-sm font-bold text-white">{set.artist}</span>
                           {set.genres[0] && (
                             <span className="text-xs px-1.5 py-0.5 rounded-full"
-                              style={{ background: `${stage?.color ?? color}22`, color: stage?.color ?? color }}>
+                              style={{ background: `${stage?.color ?? borderColor}22`, color: stage?.color ?? borderColor }}>
                               {set.genres[0]}
                             </span>
                           )}
+                          {multiUser && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold">
+                              ❤️ {users.length}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs mt-0.5 truncate" style={{ color: `${stage?.color ?? color}99` }}>
+                        <p className="text-xs mt-0.5 truncate" style={{ color: `${stage?.color ?? borderColor}99` }}>
                           {set.stage}
                         </p>
                         {clashes.length > 0 && (
                           <p className="text-xs text-red-400 mt-0.5">
-                            💥 clashes with {clashLabel(clashes, user.deviceId)}
+                            💥 clashes with {clashLabel(clashes, ownerIds)}
                           </p>
                         )}
                       </div>
 
-                      {/* User dot */}
-                      <div className="shrink-0">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} title={user.name} />
+                      {/* User dots — one per person who liked it */}
+                      <div className="shrink-0 flex items-center gap-0.5">
+                        {users.map(u => (
+                          <div key={u.deviceId}
+                            className="w-2.5 h-2.5 rounded-full ring-1 ring-black/20"
+                            style={{ background: userColors[u.deviceId] }}
+                            title={u.name}
+                          />
+                        ))}
                       </div>
                     </div>
                   );
