@@ -9,9 +9,9 @@ export interface GroupUser {
   favorites: string[];
 }
 
-const DEVICE_KEY  = "tml2026-deviceId";
-const NAME_KEY    = "tml2026-displayName";
-const SYNCED_KEY  = "tml2026-lastSynced";
+const DEVICE_KEY = "tml2026-deviceId";
+const NAME_KEY   = "tml2026-displayName";
+const SYNCED_KEY = "tml2026-lastSynced";
 
 function getOrCreateDeviceId(): string {
   try {
@@ -26,13 +26,13 @@ function getOrCreateDeviceId(): string {
 }
 
 export function useGroupPlan() {
-  const [deviceId, setDeviceId]       = useState("");
+  const [deviceId, setDeviceId]            = useState("");
   const [displayName, setDisplayNameState] = useState("");
-  const [groupUsers, setGroupUsers]   = useState<GroupUser[]>([]);
-  const [uploading, setUploading]     = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [lastSynced, setLastSynced]   = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [groupUsers, setGroupUsers]        = useState<GroupUser[]>([]);
+  const [uploading, setUploading]          = useState(false);
+  const [loading, setLoading]              = useState(false);
+  const [lastSynced, setLastSynced]        = useState<string | null>(null);
+  const [uploadError, setUploadError]      = useState<string | null>(null);
 
   useEffect(() => {
     const id   = getOrCreateDeviceId();
@@ -59,12 +59,19 @@ export function useGroupPlan() {
         name:      displayName.trim(),
         favorites: JSON.stringify(favorites),
       });
-      await fetch(`${APPS_SCRIPT_URL}?${params}`, { redirect: "follow" });
+      // Apps Script redirects to googleusercontent.com — mode:'no-cors' is the
+      // reliable cross-origin approach. We can't read the response body but the
+      // script still executes and writes to the sheet.
+      await fetch(`${APPS_SCRIPT_URL}?${params}`, {
+        method: "GET",
+        mode:   "no-cors",
+      });
+      // Assume success (no-cors means opaque response — can't inspect it)
       const now = new Date().toISOString();
       setLastSynced(now);
       try { localStorage.setItem(SYNCED_KEY, now); } catch {}
-    } catch {
-      setUploadError("Upload failed — check your connection");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed — check connection");
     } finally {
       setUploading(false);
     }
@@ -72,27 +79,22 @@ export function useGroupPlan() {
 
   const loadGroup = useCallback(async () => {
     setLoading(true);
+    setUploadError(null);
     try {
-      const res  = await fetch(`${APPS_SCRIPT_URL}?action=load`, { redirect: "follow" });
+      // Regular fetch works for GET loads — Apps Script sets CORS * on the redirect
+      const res  = await fetch(`${APPS_SCRIPT_URL}?action=load`);
       const data = await res.json();
       setGroupUsers(data.users ?? []);
-    } catch {
-      // silently fail — group plan just shows empty
+    } catch (err) {
+      console.error("Group load failed:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   return {
-    deviceId,
-    displayName,
-    setDisplayName,
-    upload,
-    loadGroup,
-    groupUsers,
-    uploading,
-    loading,
-    lastSynced,
-    uploadError,
+    deviceId, displayName, setDisplayName,
+    upload, loadGroup,
+    groupUsers, uploading, loading, lastSynced, uploadError,
   };
 }
