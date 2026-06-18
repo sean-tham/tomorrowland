@@ -44,12 +44,15 @@ function computeStats(groupUsers: GroupUser[], userColors: Record<string, string
   // Clashing set IDs
   const clashingSetIds = new Set(Array.from(clashCounts.entries()).filter(([, n]) => n > 0).map(([id]) => id));
 
-  // Most wanted
-  const mostWanted = [...merged].sort((a, b) => b.users.length - a.users.length)[0];
+  // Most wanted — all sets tied for top user count
+  const maxWanted = Math.max(...merged.map(e => e.users.length));
+  const mostWantedList = merged.filter(e => e.users.length === maxWanted).slice(0, 5);
 
-  // Most contested
-  const mostContested = [...merged].sort((a, b) => (clashCounts.get(b.set.id) ?? 0) - (clashCounts.get(a.set.id) ?? 0))[0];
-  const mostContestedN = clashCounts.get(mostContested?.set.id ?? "") ?? 0;
+  // Most contested — all sets tied for top clash count
+  const maxContested = Math.max(0, ...Array.from(clashCounts.values()));
+  const mostContestedList = maxContested > 0
+    ? merged.filter(e => (clashCounts.get(e.set.id) ?? 0) === maxContested).slice(0, 5)
+    : [];
 
   // Set hoarder
   const hoarder = [...groupUsers].sort((a, b) => b.favorites.length - a.favorites.length)[0];
@@ -115,7 +118,7 @@ function computeStats(groupUsers: GroupUser[], userColors: Record<string, string
 
   return {
     merged, clashingSetIds, clashCounts,
-    mostWanted, mostContested, mostContestedN,
+    mostWantedList, mostContestedList, maxContested,
     hoarder, minimalist,
     bestPairA, bestPairB, bestPairCount,
     wildcard, clashMagnet, loyalist, nightOwl,
@@ -172,25 +175,21 @@ export function GroupOverviewModal({ groupUsers, deviceId, onClose, onFilterClas
       <div className="relative w-full max-w-lg rounded-t-3xl glass-strong overflow-y-auto fade-in"
         style={{ maxHeight: "92vh", paddingBottom: "max(env(safe-area-inset-bottom,0px),24px)" }}>
 
-        {/* Handle + back + close */}
-        <div className="flex items-center px-4 pt-4 pb-2 gap-3 sticky top-0 glass-strong z-10">
-          <button onClick={onClose}
-            className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-sm font-medium">
-            <span className="text-lg leading-none">←</span>
-            <span>Back</span>
-          </button>
-          <div className="flex-1 flex justify-center">
-            <div className="w-8 h-1 bg-white/20 rounded-full" />
-          </div>
-          <button onClick={onClose}
-            className="w-8 h-8 rounded-full glass flex items-center justify-center text-white/50 hover:text-white transition-colors text-sm">
-            ✕
-          </button>
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-8 h-1 bg-white/20 rounded-full" />
         </div>
 
-        <div className="px-4 pt-2 pb-2">
-          <h2 className="text-xl font-black text-white">Group Overview</h2>
-          <p className="text-xs text-white/40 mt-0.5">{groupUsers.length} people · {totalSets} sets saved</p>
+        {/* Title row — close button lives here, always visible */}
+        <div className="flex items-start justify-between px-4 pt-2 pb-2">
+          <div>
+            <h2 className="text-xl font-black text-white">Group Overview</h2>
+            <p className="text-xs text-white/40 mt-0.5">{groupUsers.length} people · {totalSets} sets saved</p>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full glass flex items-center justify-center text-white/50 hover:text-white transition-colors text-sm shrink-0 mt-0.5">
+            ✕
+          </button>
         </div>
 
         <div className="px-4 space-y-3 pb-4">
@@ -213,23 +212,41 @@ export function GroupOverviewModal({ groupUsers, deviceId, onClose, onFilterClas
           </div>
 
           {/* Most wanted */}
-          {s.mostWanted && (
-            <StatCard emoji="🏅" title="Most Wanted">
-              <p className="text-base font-bold text-white">{s.mostWanted.set.artist}</p>
-              <p className="text-xs text-white/40 mt-0.5">{s.mostWanted.set.stage}</p>
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                {s.mostWanted.users.map(u => <Dot key={u.deviceId} user={u} />)}
-                <span className="text-xs text-white/30">{s.mostWanted.users.length} people</span>
+          {s.mostWantedList.length > 0 && (
+            <StatCard emoji="🏅" title={`Most Wanted${s.mostWantedList.length > 1 ? ` (${s.mostWantedList.length} tied)` : ""}`}>
+              <div className="space-y-3">
+                {s.mostWantedList.map(e => (
+                  <div key={e.set.id}>
+                    <p className="text-sm font-bold text-white">{e.set.artist}</p>
+                    <p className="text-xs text-white/40">{e.set.stage}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {e.users.map(u => <Dot key={u.deviceId} user={u} />)}
+                      <span className="text-xs text-white/30">{e.users.length} people</span>
+                    </div>
+                    {s.mostWantedList.indexOf(e) < s.mostWantedList.length - 1 && (
+                      <div className="border-t border-white/5 mt-3" />
+                    )}
+                  </div>
+                ))}
               </div>
             </StatCard>
           )}
 
           {/* Most contested */}
-          {s.mostContested && s.mostContestedN > 0 && (
-            <StatCard emoji="⚔️" title="Most Contested Slot">
-              <p className="text-base font-bold text-white">{s.mostContested.set.artist}</p>
-              <p className="text-xs text-white/40 mt-0.5">{s.mostContested.set.stage}</p>
-              <p className="text-xs text-red-400 mt-1">💥 {s.mostContestedN} clash{s.mostContestedN !== 1 ? "es" : ""}</p>
+          {s.mostContestedList.length > 0 && (
+            <StatCard emoji="⚔️" title={`Most Contested${s.mostContestedList.length > 1 ? ` (${s.mostContestedList.length} tied)` : ""}`}>
+              <div className="space-y-3">
+                {s.mostContestedList.map(e => (
+                  <div key={e.set.id}>
+                    <p className="text-sm font-bold text-white">{e.set.artist}</p>
+                    <p className="text-xs text-white/40">{e.set.stage}</p>
+                    <p className="text-xs text-red-400 mt-1">💥 {s.maxContested} clash{s.maxContested !== 1 ? "es" : ""}</p>
+                    {s.mostContestedList.indexOf(e) < s.mostContestedList.length - 1 && (
+                      <div className="border-t border-white/5 mt-3" />
+                    )}
+                  </div>
+                ))}
+              </div>
             </StatCard>
           )}
 

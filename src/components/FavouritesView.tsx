@@ -27,7 +27,8 @@ interface Props {
 }
 
 export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick, displayName, onSetName, onUpload, onRemove, uploading, removing, isUpToDate, lastSynced, uploadError }: Props) {
-  const [shareOpen, setShareOpen] = useState(false);
+  const [shareOpen, setShareOpen]         = useState(false);
+  const [confirmClear, setConfirmClear]   = useState(false);
 
   const favSets = useMemo(
     () => LINEUP.filter(s => favorites.includes(s.id)).sort((a, b) => {
@@ -110,12 +111,26 @@ export function FavouritesView({ favorites, onToggleFav, onClearAll, onSetClick,
       <div className="flex items-center justify-between px-4 pt-2 pb-3">
         <div className="flex items-center gap-3">
           <p className="text-xs text-white/40">{favorites.length} set{favorites.length !== 1 ? "s" : ""}</p>
-          <button
-            onClick={() => { if (confirm("Clear all favourites?")) onClearAll(); }}
-            className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
-          >
-            Clear all
-          </button>
+          {confirmClear ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/40">Sure?</span>
+              <button
+                onClick={() => { onClearAll(); setConfirmClear(false); }}
+                className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors"
+              >Yes</button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="text-xs text-white/30 hover:text-white/60 transition-colors"
+              >Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClear(true)}
+              className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
+            >
+              Clear all
+            </button>
+          )}
         </div>
         {shareButton}
       </div>
