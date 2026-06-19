@@ -68,7 +68,7 @@ export default function Home() {
 
       {/* Header */}
       <header className="px-4 flex items-center gap-3 pb-2"
-        style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}>
+        style={{ paddingTop: "calc(max(env(safe-area-inset-top, 0px), 16px) + 20px)" }}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-base">{TAB_ICONS[tab]}</span>
