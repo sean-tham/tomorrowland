@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { APPS_SCRIPT_URL } from "@/data/config";
+import { migrateFavIds } from "@/data/migrateFavs";
 
 export interface GroupUser {
   deviceId: string;
@@ -128,7 +129,11 @@ export function useGroupPlan() {
     try {
       const res  = await fetch(`${APPS_SCRIPT_URL}?action=load`);
       const data = await res.json();
-      setGroupUsers((data.users ?? []).filter((u: GroupUser) => u.favorites.length > 0));
+      const users: GroupUser[] = (data.users ?? []).map((u: GroupUser) => ({
+        ...u,
+        favorites: migrateFavIds(u.favorites),
+      })).filter((u: GroupUser) => u.favorites.length > 0);
+      setGroupUsers(users);
     } catch (err) {
       console.error("Group load failed:", err);
     } finally {
