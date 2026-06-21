@@ -1,14 +1,15 @@
 "use client";
 import { useEffect } from "react";
 
-type Tab = "schedule" | "stages" | "map" | "favourites" | "group";
+type Tab = "schedule" | "stages" | "map" | "favourites" | "group" | "changelog";
 
-const NAV: { id: Tab; icon: string; label: string; desc: string }[] = [
-  { id: "schedule",   icon: "🗓️", label: "Schedule",  desc: "Full 3-day lineup" },
-  { id: "stages",     icon: "🎡", label: "Stages",    desc: "Browse by stage" },
-  { id: "map",        icon: "🗺️", label: "Map",       desc: "Find your stage" },
-  { id: "favourites", icon: "❤️", label: "My Plan",   desc: "Your saved sets" },
+const NAV: { id: Tab; icon: string; label: string; desc: string; badge?: string }[] = [
+  { id: "schedule",   icon: "🗓️", label: "Schedule",   desc: "Full 3-day lineup" },
+  { id: "stages",     icon: "🎡", label: "Stages",     desc: "Browse by stage" },
+  { id: "map",        icon: "🗺️", label: "Map",        desc: "Find your stage" },
+  { id: "favourites", icon: "❤️", label: "My Plan",    desc: "Your saved sets" },
   { id: "group",      icon: "👥", label: "Group Plan", desc: "Everyone's picks" },
+  { id: "changelog",  icon: "📋", label: "Updates",    desc: "Schedule changes", badge: "NEW" },
 ];
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onClose: () => void;
   favCount: number;
 }
+
+export type { Tab };
 
 export function NavMenu({ activeTab, onSelect, onClose, favCount }: Props) {
   useEffect(() => {
@@ -70,6 +73,11 @@ export function NavMenu({ activeTab, onSelect, onClose, favCount }: Props) {
                     {item.id === "favourites" && favCount > 0 && (
                       <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full font-semibold">
                         {favCount}
+                      </span>
+                    )}
+                    {item.badge && (
+                      <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {item.badge}
                       </span>
                     )}
                   </div>

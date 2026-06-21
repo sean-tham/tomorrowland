@@ -8,6 +8,7 @@ import { FavouritesView } from "@/components/FavouritesView";
 import { GroupPlanView } from "@/components/GroupPlanView";
 import { SetDetailModal } from "@/components/SetDetailModal";
 import { NavMenu } from "@/components/NavMenu";
+import { ChangelogView } from "@/components/ChangelogView";
 import dynamic from "next/dynamic";
 import { TmlSet } from "@/data/lineup";
 
@@ -20,7 +21,7 @@ const MapView = dynamic(() => import("@/components/MapView").then(m => m.MapView
   ),
 });
 
-type Tab = "schedule" | "stages" | "map" | "favourites" | "group";
+type Tab = "schedule" | "stages" | "map" | "favourites" | "group" | "changelog";
 
 const TAB_LABELS: Record<Tab, string> = {
   schedule:   "Schedule",
@@ -28,6 +29,7 @@ const TAB_LABELS: Record<Tab, string> = {
   map:        "Map",
   favourites: "My Plan",
   group:      "Group Plan",
+  changelog:  "Updates",
 };
 
 const TAB_ICONS: Record<Tab, string> = {
@@ -36,6 +38,7 @@ const TAB_ICONS: Record<Tab, string> = {
   map:        "🗺️",
   favourites: "❤️",
   group:      "👥",
+  changelog:  "📋",
 };
 
 export default function Home() {
@@ -127,6 +130,7 @@ export default function Home() {
             loading={loading} onRefresh={loadGroup} onSetClick={handleSetClick}
           />
         )}
+        {tab === "changelog" && <ChangelogView />}
       </main>
 
       {/* Nav menu overlay */}

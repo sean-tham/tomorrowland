@@ -15,11 +15,11 @@ const STAGE_COORDS: Record<string, [number, number]> = {
   "THE RAVE CAVE":          [51.09150, 4.36320],
   "PLANAXIS":               [51.09080, 4.36620],
   "MELODIA BY CORONA":      [51.08870, 4.36880],
-  "RISE":                   [51.08780, 4.36450],
+  "CELESTIA BY KUCOIN":                   [51.08780, 4.36450],
   "ATMOSPHERE":             [51.09050, 4.36200],
   "CORE":                   [51.08820, 4.36560],
   "CRYSTAL GARDEN":         [51.08960, 4.36730],
-  "THE LIBRARY":            [51.08850, 4.36820],
+  "THE GREAT LIBRARY":            [51.08850, 4.36820],
   "MOOSE BAR":              [51.08760, 4.36310],
   "HOUSE OF FORTUNE BY JBL":[51.08690, 4.36890],
 };
